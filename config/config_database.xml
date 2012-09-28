@@ -1,0 +1,24 @@
+<config>
+	<database>
+		<apple>
+			<username>test</username>
+			<password>test</password>
+			<url>jdbc:mysql://localhost/test?autoReconnect=true&amp;rewriteBatchedStatements=true
+			</url>
+			<driver>com.mysql.jdbc.Driver</driver>
+		</apple>
+		<olive>
+			<username>test</username>
+			<password>test</password>
+			<url>jdbc:oracle:thin:@localhost:1505:instance1</url>
+			<driver>oracle.jdbc.driver.OracleDriver</driver>
+		</olive>
+		<kiwi>
+			<username>test</username>
+			<password>test</password>
+			<url>jdbc:jtds:sqlserver://localhost:1433/test;instance=instance02
+			</url>
+			<driver>net.sourceforge.jtds.jdbc.Driver</driver>
+		</kiwi>
+	</database>
+</config>
