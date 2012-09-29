@@ -1,6 +1,11 @@
 *.class
-
-# Package Files #
 *.jar
 *.war
 *.ear
+*.log
+target
+.classpath
+.project
+.settings
+.svn
+Thumbs.db
