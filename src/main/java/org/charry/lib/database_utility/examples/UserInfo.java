@@ -18,7 +18,29 @@ public class UserInfo {
 	@FieldInfo(type = KType.STRING)
 	private String joinTime;
 
+	@FieldInfo(ignore = true)
+	private int age;
+
+	@FieldInfo(ignore = true)
+	private String location;
+
 	public UserInfo() {
+	}
+
+	public int getAge() {
+		return this.age;
+	};
+
+	public void setAge(int age) {
+		this.age = age;
+	}
+
+	public String getLocation() {
+		return this.location;
+	}
+
+	public void setLocation(String location) {
+		this.location = location;
 	}
 
 	public String getJoinTime() {

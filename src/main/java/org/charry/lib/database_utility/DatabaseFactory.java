@@ -3,6 +3,7 @@ package org.charry.lib.database_utility;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -613,8 +614,8 @@ public final class DatabaseFactory {
 	 *            object
 	 * @return ResultSetEx
 	 */
-	public ResultSetEx saveObject(Class clazz, Object object) {
-		Orm orm = new Orm(clazz, object);
+	public ResultSetEx saveObject(Object object) {
+		Orm orm = new Orm(object);
 		String tableName = "";
 		if (this.targetTable.equals("") == false)
 			tableName = this.targetTable;
@@ -710,6 +711,14 @@ public final class DatabaseFactory {
 
 		public void setStatement(Statement statement) {
 			this.statement = statement;
+		}
+
+		public List toList(Class clazz) {
+			Orm orm = new Orm();
+
+			List list = orm.dumpResultSet(resultSet, clazz);
+
+			return list;
 		}
 
 		/**

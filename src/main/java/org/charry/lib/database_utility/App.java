@@ -7,7 +7,7 @@ import org.apache.commons.logging.LogFactory;
 /**
  * 
  * @author charry
- * @version 0.0.9 beta
+ * @version 0.1.0 beta
  */
 public class App {
 	private static Log log = LogFactory.getLog(App.class);

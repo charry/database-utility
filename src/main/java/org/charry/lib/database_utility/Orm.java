@@ -2,8 +2,13 @@ package org.charry.lib.database_utility;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -18,13 +23,25 @@ public class Orm {
 	private Object object = null;
 	private String tableName = "";
 
-	public Orm(Class clazz, Object object) {
-		this.clazz = clazz;
+	/**
+	 * Object to database.
+	 * 
+	 * @param object
+	 */
+	public Orm(Object object) {
+		this.clazz = object.getClass();
 		this.object = object;
 		TableInfo tableInfo = (TableInfo) clazz.getAnnotation(TableInfo.class);
 
 		if (tableInfo != null)
 			this.tableName = tableInfo.name();
+	}
+
+	/**
+	 * Database to object.
+	 */
+	public Orm() {
+		// NOOP
 	}
 
 	public String getTableName() {
@@ -97,11 +114,112 @@ public class Orm {
 		return sql;
 	}
 
-	boolean isLowerCase(char ch) {
+	private ArrayList<FieldMap> getFieldMap(ResultSet rs, Class clazz) {
+		ArrayList<FieldMap> fieldMap = new ArrayList<FieldMap>();
+
+		Field[] fields = clazz.getDeclaredFields();
+
+		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
+			FieldInfo kAnnotation = fields[iColCnt]
+					.getAnnotation(FieldInfo.class);
+			String originalFieldName = fields[iColCnt].getName();
+			String fieldName = originalFieldName;
+			if (kAnnotation != null) {
+				if (kAnnotation.ignore() == true)
+					continue;
+			}
+
+			if (kAnnotation != null
+					&& kAnnotation.fieldname().equals("") == false)
+				fieldName = kAnnotation.fieldname();
+
+			/**
+			 * <pre>
+			 * originalFieldName: field name of the object 
+			 * fieldName: user-customed field name
+			 * </pre>
+			 */
+			FieldMap item = getFieldMap(rs, originalFieldName, fieldName);
+
+			if (item.getObjectFieldName() != null)
+				fieldMap.add(item);
+		}
+
+		return fieldMap;
+	}
+
+	private FieldMap getFieldMap(ResultSet rs, String originalFieldName,
+			String objectFieldName) {
+		FieldMap item = new FieldMap();
+
+		String tableFieldName = formatFieldName(objectFieldName);
+		try {
+			ResultSetMetaData metaData;
+			metaData = (ResultSetMetaData) rs.getMetaData();
+
+			for (int i = 1; i <= metaData.getColumnCount(); ++i) {
+				String fieldName = metaData.getColumnName(i);
+
+				if (tableFieldName.compareToIgnoreCase(fieldName) == 0) {
+					item.setTableFieldColumn(i);
+					item.setObjectFieldName(originalFieldName);
+
+					break;
+				}
+			}
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
+		}
+
+		return item;
+	}
+
+	public List dumpResultSet(ResultSet rs, Class clazz) {
+		// get the field mapping
+		ArrayList<FieldMap> fieldMap = getFieldMap(rs, clazz);
+
+		ResultSetMetaData metaData;
+		try {
+			metaData = (ResultSetMetaData) rs.getMetaData();
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
+		}
+
+		List elements = new ArrayList();
+		try {
+			while (rs.next()) {
+				Object newInstance = clazz.newInstance();
+
+				for (int i = 0; i < fieldMap.size(); i++) {
+					int columnPosition = fieldMap.get(i).getTableFieldColumn();
+					Object value = rs.getObject(columnPosition);
+
+					BeanUtils.copyProperty(newInstance, fieldMap.get(i)
+							.getObjectFieldName(), value);
+				}
+
+				elements.add(newInstance);
+			}
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (InstantiationException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (IllegalAccessException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (InvocationTargetException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (Exception e) {
+			StackUtil.logStackTrace(log, e);
+		}
+
+		return elements;
+	}
+
+	private boolean isLowerCase(char ch) {
 		return ch >= 'a' && ch <= 'z';
 	}
 
-	boolean isUpperCase(char ch) {
+	private boolean isUpperCase(char ch) {
 		return ch >= 'A' && ch <= 'Z';
 	}
 
@@ -120,5 +238,26 @@ public class Orm {
 		}
 
 		return name;
+	}
+
+	public class FieldMap {
+		private String objectFieldName;
+		private int tableFieldColumn;
+
+		public String getObjectFieldName() {
+			return objectFieldName;
+		}
+
+		public void setObjectFieldName(String objectFieldName) {
+			this.objectFieldName = objectFieldName;
+		}
+
+		public int getTableFieldColumn() {
+			return tableFieldColumn;
+		}
+
+		public void setTableFieldColumn(int tableFieldColumn) {
+			this.tableFieldColumn = tableFieldColumn;
+		}
 	}
 }
