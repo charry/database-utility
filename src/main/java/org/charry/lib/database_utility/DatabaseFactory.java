@@ -627,9 +627,38 @@ public final class DatabaseFactory {
 		return this.executeUpdate(sql);
 	}
 
-	// TODO
+	/**
+	 * Insert if record doesn't exist, else update
+	 * 
+	 * @param keys
+	 *            to determine if record(s) exist
+	 * @return
+	 */
 	public ResultSetEx insertOrUpdate(String... keys) {
-		return null;
+		String condition = "";
+		for (String key : keys) {
+			for (int i = 0; i < fieldNameList.size(); ++i) {
+				String fname = fieldNameList.get(i);
+
+				if (key.equals(fname)) {
+					condition += key + "=" + fieldValueList.get(i);
+					condition += " AND ";
+				}
+			}
+		}
+
+		if (condition.contains("AND"))
+			condition = condition.substring(0, condition.length() - 4);
+
+		String sql = String.format("SELECT COUNT(*) AS R FROM %s WHERE %s",
+				this.targetTable, condition);
+
+		if (getIntValue(sql, "R") == 0) {
+			return this.insertRecord();
+		} else {
+			this.whereCondition = condition;
+			return this.updateRecord();
+		}
 	}
 
 	/**
@@ -717,7 +746,7 @@ public final class DatabaseFactory {
 			Orm orm = new Orm();
 
 			List list = orm.dumpResultSet(resultSet, clazz);
-			
+
 			this.close();
 
 			return list;
