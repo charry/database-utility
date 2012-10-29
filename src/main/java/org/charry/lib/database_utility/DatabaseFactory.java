@@ -114,7 +114,7 @@ public final class DatabaseFactory {
 	 * @param alias
 	 *            new database connection alias
 	 */
-	public void saveAs(String alias) {
+	public void saveAliasAs(String alias) {
 		// if alias already exists, do nothing.
 		if (this.databaseAlias.equals(alias)) {
 			log.info("alias exists, noop");
