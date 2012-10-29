@@ -1,5 +1,8 @@
 package org.charry.lib.database_utility;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.XMLConfiguration;
 import org.apache.commons.logging.Log;
@@ -15,6 +18,11 @@ import org.apache.commons.logging.LogFactory;
  */
 public class DatabaseConfig {
 	private static Log log = LogFactory.getLog(DatabaseConfig.class);
+	/**
+	 * Te be more convenient, the database connection config will NOT be
+	 * removed, even client close the connection
+	 */
+	private static Map<String, DatabaseConfig> databaseConfigMap = new HashMap<String, DatabaseConfig>();
 
 	private static String configXML = "config/config_database.xml";
 	private String user;
@@ -33,6 +41,27 @@ public class DatabaseConfig {
 		this.alias = alias;
 
 		loadConfig();
+
+		databaseConfigMap.put(alias, this); // cache db config
+	}
+
+	public static void resetConfigCache() {
+		databaseConfigMap.clear();
+	}
+
+	public static void removeConfigCache(String alias) {
+		databaseConfigMap.remove(alias);
+	}
+
+	public static DatabaseConfig getConfig(String alias) {
+		Object obj = databaseConfigMap.get(alias);
+		DatabaseConfig config = null;
+		if (obj != null)
+			config = (DatabaseConfig) obj;
+		else
+			config = new DatabaseConfig(alias);
+
+		return config;
 	}
 
 	public DatabaseConfig(final String alias, final String user,
@@ -43,6 +72,8 @@ public class DatabaseConfig {
 		this.password = password;
 		this.connectionString = connectionString;
 		this.user = user;
+
+		databaseConfigMap.put(alias, this); // cache db config
 	}
 
 	public static void setConfigXML(String config) {

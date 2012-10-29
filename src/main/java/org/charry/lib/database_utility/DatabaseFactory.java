@@ -106,6 +106,30 @@ public final class DatabaseFactory {
 	}
 
 	/**
+	 * Save the database connection as a new alias, the corresponding database
+	 * connection won't be created until the client code calls it.
+	 * 
+	 * If the new alias exits, the connection will be overwritten/replaced.
+	 * 
+	 * @param alias
+	 *            new database connection alias
+	 */
+	public void saveAs(String alias) {
+		// if alias already exists, do nothing.
+		if (this.databaseAlias.equals(alias)) {
+			log.info("alias exists, noop");
+			return;
+		}
+
+		DatabaseConfig config = DatabaseConfig.getConfig(databaseAlias);
+
+		// the object will be cached in constructor automatically
+		// if the new alias exits, it'll be overwritten/replaced.
+		new DatabaseConfig(alias, config.getUser(), config.getPassword(),
+				config.getConnectionString(), config.getDriver());
+	}
+
+	/**
 	 * Initialize the database factory.
 	 * 
 	 * @param alias
