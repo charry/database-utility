@@ -442,7 +442,7 @@ public final class DatabaseFactory {
 		try {
 			bFound = rx.getResultSet().first();
 		} catch (SQLException e) {
-			log.error("SQLException:" + e);
+			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
 		}
@@ -468,9 +468,11 @@ public final class DatabaseFactory {
 				value = rx.getResultSet().getInt(fieldName);
 			}
 		} catch (SQLException e) {
-			log.error("SQLException:" + e);
+			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
+		} finally {
+			rx.close();
 		}
 
 		return value;
@@ -492,9 +494,11 @@ public final class DatabaseFactory {
 				value = rx.getResultSet().getString(fieldName);
 			}
 		} catch (SQLException e) {
-			log.error("SQLException:" + e);
+			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
+		} finally {
+			rx.close();
 		}
 
 		return value;
@@ -787,7 +791,7 @@ public final class DatabaseFactory {
 				if (statement != null)
 					statement.close();
 			} catch (Exception e) {
-				log.error(e);
+				StackUtil.logStackTrace(log, e);
 			}
 		}
 	}
