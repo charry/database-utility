@@ -15,7 +15,7 @@ import org.charry.lib.database_utility.util.StackUtil;
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
  * 
- * @version 0.1.1
+ * @version 0.1.2
  */
 public final class DatabaseFactory {
 	private static Log log = LogFactory.getLog(DatabaseFactory.class);
