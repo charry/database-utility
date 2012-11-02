@@ -211,6 +211,10 @@ public final class DatabaseFactory {
 
 			rsEx.setResultSet(rs);
 			rsEx.setStatement(stmt);
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sql);
@@ -245,6 +249,10 @@ public final class DatabaseFactory {
 
 		try {
 			stmt = connection.prepareStatement(sql);
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sql);
@@ -315,6 +323,10 @@ public final class DatabaseFactory {
 			rsEx.setResultSet(rs);
 			rsEx.setStatement(stmt);
 
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sql);
@@ -358,6 +370,10 @@ public final class DatabaseFactory {
 
 			if (bAutoToggle)
 				connection.setAutoCommit(autoCommit);
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
 		}
@@ -383,6 +399,10 @@ public final class DatabaseFactory {
 
 			stmt.executeBatch();
 			connection.commit();
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sqlList);
@@ -441,6 +461,10 @@ public final class DatabaseFactory {
 		boolean bFound = false;
 		try {
 			bFound = rx.getResultSet().first();
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
@@ -467,6 +491,10 @@ public final class DatabaseFactory {
 			if (rx.getResultSet().next()) {
 				value = rx.getResultSet().getInt(fieldName);
 			}
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
@@ -493,6 +521,10 @@ public final class DatabaseFactory {
 			if (rx.getResultSet().next()) {
 				value = rx.getResultSet().getString(fieldName);
 			}
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
 		} catch (SQLException e) {
 			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
@@ -713,7 +745,7 @@ public final class DatabaseFactory {
 	}
 
 	/**
-	 * A wrapper for MySQL ResultSet.
+	 * A wrapper for MySQL ResultSet. Ex means Extended.
 	 * 
 	 * @author wcharry
 	 * 
@@ -794,6 +826,13 @@ public final class DatabaseFactory {
 				StackUtil.logStackTrace(log, e);
 			}
 		}
+	}
+
+	/**
+	 * Close all database connections
+	 */
+	public static void closeAllConnections() {
+		// TODO
 	}
 
 	public final static class FactoryFacade {
