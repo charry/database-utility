@@ -3,6 +3,7 @@ package org.charry.lib.database_utility;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -15,11 +16,11 @@ import org.charry.lib.database_utility.util.StackUtil;
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
  * 
- * @version 0.1.2
+ * @version 0.1.2 beta
  */
 public final class DatabaseFactory {
 	private static Log log = LogFactory.getLog(DatabaseFactory.class);
-	private static DatabaseFactory databaseInstance = null;
+	private DatabaseFactory databaseInstance = null;
 	private Connection connection = null;
 	private String databaseAlias;
 	private static String defaultDatabaseAlias = "apple";
@@ -56,7 +57,7 @@ public final class DatabaseFactory {
 	}
 
 	public static synchronized DatabaseFactory getInstance(String alias) {
-		DatabaseConfig config = new DatabaseConfig(alias);
+		DatabaseConfig config = DatabaseConfig.getConfig(alias);
 
 		return DatabaseFactory.getInstance(config);
 	}
@@ -72,6 +73,7 @@ public final class DatabaseFactory {
 		Object obj = databaseInstanceMap.get(config.getAlias());
 		long lNow = new java.util.Date().getTime();
 
+		DatabaseFactory databaseInstance = null;
 		if (obj == null) {
 			databaseInstance = new DatabaseFactory(config);
 			log.info("create db connection:" + config.getAlias());
@@ -112,7 +114,7 @@ public final class DatabaseFactory {
 	 * If the new alias exits, the connection will be overwritten/replaced.
 	 * 
 	 * @param alias
-	 *            new database connection alias
+	 *            new database alias
 	 */
 	public void saveAliasAs(String alias) {
 		// if alias already exists, do nothing.
@@ -370,10 +372,6 @@ public final class DatabaseFactory {
 
 			if (bAutoToggle)
 				connection.setAutoCommit(autoCommit);
-		} catch (SQLRecoverableException e) {
-			log.error("SQLRecoverableException");
-			StackUtil.logStackTrace(log, e);
-			closeConnection();
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
 		}
@@ -430,7 +428,7 @@ public final class DatabaseFactory {
 
 			databaseInstance = null;
 		} catch (SQLException e) {
-			log.error("SQLException:" + e);
+			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
 		}
@@ -461,17 +459,13 @@ public final class DatabaseFactory {
 		boolean bFound = false;
 		try {
 			bFound = rx.getResultSet().first();
-		} catch (SQLRecoverableException e) {
-			log.error("SQLRecoverableException");
-			StackUtil.logStackTrace(log, e);
-			closeConnection();
 		} catch (SQLException e) {
 			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
+		} finally {
+			rx.close();
 		}
-
-		rx.close();
 
 		return bFound;
 	}
@@ -691,7 +685,7 @@ public final class DatabaseFactory {
 	 * Insert if record doesn't exist, else update
 	 * 
 	 * @param keys
-	 *            to determine if record(s) exist
+	 *            keys to determine if record(s) exist
 	 * @return
 	 */
 	public ResultSetEx insertOrUpdate(String... keys) {
@@ -775,6 +769,10 @@ public final class DatabaseFactory {
 
 				if (rsKeys != null)
 					rsKeys.close();
+			} catch (SQLRecoverableException e) {
+				log.error("SQLRecoverableException");
+				StackUtil.logStackTrace(log, e);
+				closeConnection();
 			} catch (SQLException e) {
 				StackUtil.logStackTrace(log, e);
 			}
@@ -832,7 +830,17 @@ public final class DatabaseFactory {
 	 * Close all database connections
 	 */
 	public static void closeAllConnections() {
-		// TODO
+		Iterator iter = databaseInstanceMap.entrySet().iterator();
+		while (iter.hasNext()) {
+			Map.Entry entry = (Map.Entry) iter.next();
+			// Object key = entry.getKey();
+			Object val = entry.getValue();
+			DatabaseFactory databaseInstance = (DatabaseFactory) val;
+			
+			databaseInstance.closeConnection();
+		}
+		
+		databaseInstanceMap.clear();
 	}
 
 	public final static class FactoryFacade {
