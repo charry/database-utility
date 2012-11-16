@@ -48,10 +48,98 @@ public class Orm {
 		return this.tableName;
 	}
 
-	public String getSQL() {
+	public String getUpdateSQL() {
+		String sql = " SET ";
+		ArrayList<String> fieldNameList = new ArrayList<String>();
+		ArrayList<String> fieldValueList = new ArrayList<String>();
+
+		getKeyValueMap(fieldNameList, fieldValueList);
+
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i) + ",";
+		}
+
+		// Remove tailing ,
+		sql = sql.substring(0, sql.length() - 1);
+
+		return sql;
+	}
+
+	/**
+	 * Get SQL based on specified field names
+	 * 
+	 * @param toBeUpdatedFields
+	 * @return
+	 */
+	public String getUpdateSQL(String... toBeUpdatedFields) {
+		// convert object name to table field name
+		for (int i = 0; i < toBeUpdatedFields.length; ++i) {
+			toBeUpdatedFields[i] = formatFieldName(toBeUpdatedFields[i])
+					.toUpperCase();
+		}
+
+		String sql = " SET ";
+		ArrayList<String> fieldNameList = new ArrayList<String>();
+		ArrayList<String> fieldValueList = new ArrayList<String>();
+
+		getKeyValueMap(fieldNameList, fieldValueList);
+
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			for (String f : toBeUpdatedFields) {
+				if (fieldNameList.get(i).equals(f)) {
+					sql += fieldNameList.get(i) + "=" + fieldValueList.get(i)
+							+ ",";
+
+					break;
+				}
+			}
+		}
+
+		// Remove tailing ,
+		sql = sql.substring(0, sql.length() - 1);
+
+		return sql;
+	}
+
+	/**
+	 * Get SQL based on all fields.
+	 * 
+	 * @return
+	 */
+	public String getInsertSQL() {
 		String sql = " (";
 		ArrayList<String> fieldNameList = new ArrayList<String>();
 		ArrayList<String> fieldValueList = new ArrayList<String>();
+
+		getKeyValueMap(fieldNameList, fieldValueList);
+
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			if (i < fieldNameList.size() - 1)
+				sql += fieldNameList.get(i) + ", ";
+			else
+				sql += fieldNameList.get(i);
+		}
+		sql += ") VALUES(";
+
+		for (int i = 0; i < fieldValueList.size(); ++i) {
+			if (i < fieldValueList.size() - 1)
+				sql += fieldValueList.get(i) + ", ";
+			else
+				sql += fieldValueList.get(i);
+		}
+		sql += ")";
+
+		return sql;
+	}
+
+	/**
+	 * Get key list and corresponding value list.
+	 * 
+	 * @param fieldNameList
+	 * @param fieldValueList
+	 */
+	private void getKeyValueMap(ArrayList<String> fieldNameList,
+			ArrayList<String> fieldValueList) {
 		Field[] fields = clazz.getDeclaredFields();
 
 		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
@@ -94,24 +182,6 @@ public class Orm {
 				StackUtil.logStackTrace(log, e);
 			}
 		}
-
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			if (i < fieldNameList.size() - 1)
-				sql += fieldNameList.get(i) + ", ";
-			else
-				sql += fieldNameList.get(i);
-		}
-		sql += ") VALUES(";
-
-		for (int i = 0; i < fieldValueList.size(); ++i) {
-			if (i < fieldValueList.size() - 1)
-				sql += fieldValueList.get(i) + ", ";
-			else
-				sql += fieldValueList.get(i);
-		}
-		sql += ")";
-
-		return sql;
 	}
 
 	private ArrayList<FieldMap> getFieldMap(ResultSet rs, Class clazz) {
@@ -177,13 +247,6 @@ public class Orm {
 	public List dumpResultSet(ResultSet rs, Class clazz) {
 		// get the field mapping
 		ArrayList<FieldMap> fieldMap = getFieldMap(rs, clazz);
-
-		ResultSetMetaData metaData;
-		try {
-			metaData = (ResultSetMetaData) rs.getMetaData();
-		} catch (SQLException e) {
-			StackUtil.logStackTrace(log, e);
-		}
 
 		List elements = new ArrayList();
 		try {

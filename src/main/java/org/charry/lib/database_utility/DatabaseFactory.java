@@ -11,12 +11,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.charry.lib.database_utility.util.SleepManager;
 import org.charry.lib.database_utility.util.StackUtil;
-
 /**
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
  * 
- * @version 0.1.2 beta
+ * @version 0.1.3 beta
  */
 public final class DatabaseFactory {
 	private static Log log = LogFactory.getLog(DatabaseFactory.class);
@@ -660,6 +659,46 @@ public final class DatabaseFactory {
 	}
 
 	/**
+	 * @param object
+	 * @param key
+	 */
+	public ResultSetEx updateObject(Object object, String where) {
+		Orm orm = new Orm(object);
+
+		String tableName = "";
+		if (this.targetTable.equals("") == false)
+			tableName = this.targetTable;
+		else
+			tableName = orm.getTableName();
+
+		String sql = "UPDATE " + tableName + orm.getUpdateSQL();
+		sql += " WHERE " + where;
+
+		return this.executeUpdate(sql);
+	}
+
+	/**
+	 * @param object
+	 * @param key
+	 * @param fields
+	 */
+	public ResultSetEx updateObject(Object object, String where,
+			String... fields) {
+		Orm orm = new Orm(object);
+
+		String tableName = "";
+		if (this.targetTable.equals("") == false)
+			tableName = this.targetTable;
+		else
+			tableName = orm.getTableName();
+
+		String sql = "UPDATE " + tableName + orm.getUpdateSQL(fields);
+		sql += " WHERE " + where;
+
+		return this.executeUpdate(sql);
+	}
+
+	/**
 	 * Save a object
 	 * 
 	 * @param clazz
@@ -676,7 +715,7 @@ public final class DatabaseFactory {
 		else
 			tableName = orm.getTableName();
 
-		String sql = "INSERT INTO " + tableName + orm.getSQL();
+		String sql = "INSERT INTO " + tableName + orm.getInsertSQL();
 
 		return this.executeUpdate(sql);
 	}
@@ -836,10 +875,10 @@ public final class DatabaseFactory {
 			// Object key = entry.getKey();
 			Object val = entry.getValue();
 			DatabaseFactory databaseInstance = (DatabaseFactory) val;
-			
+
 			databaseInstance.closeConnection();
 		}
-		
+
 		databaseInstanceMap.clear();
 	}
 
