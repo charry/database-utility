@@ -244,11 +244,11 @@ public class Orm {
 		return item;
 	}
 
-	public List dumpResultSet(ResultSet rs, Class clazz) {
+	public <T> List<T> dumpResultSet(ResultSet rs, Class clazz) {
 		// get the field mapping
 		ArrayList<FieldMap> fieldMap = getFieldMap(rs, clazz);
 
-		List elements = new ArrayList();
+		List<T> elements = new ArrayList<T>();
 		try {
 			while (rs.next()) {
 				Object newInstance = clazz.newInstance();
@@ -261,7 +261,7 @@ public class Orm {
 							.getObjectFieldName(), value);
 				}
 
-				elements.add(newInstance);
+				elements.add((T) newInstance);
 			}
 		} catch (SQLException e) {
 			StackUtil.logStackTrace(log, e);

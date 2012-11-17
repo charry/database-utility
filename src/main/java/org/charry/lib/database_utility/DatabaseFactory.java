@@ -11,6 +11,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.charry.lib.database_utility.util.SleepManager;
 import org.charry.lib.database_utility.util.StackUtil;
+
 /**
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
@@ -839,10 +840,10 @@ public final class DatabaseFactory {
 			this.statement = statement;
 		}
 
-		public List toList(Class clazz) {
+		public <T> List<T> toList(Class clazz) {
 			Orm orm = new Orm();
 
-			List list = orm.dumpResultSet(resultSet, clazz);
+			List<T> list = orm.dumpResultSet(resultSet, clazz);
 
 			this.close();
 
