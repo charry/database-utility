@@ -24,6 +24,13 @@ public class Orm {
 	private String tableName = "";
 
 	/**
+	 * Database to object.
+	 */
+	public Orm() {
+		// NOOP
+	}
+
+	/**
 	 * Object to database.
 	 * 
 	 * @param object
@@ -37,74 +44,117 @@ public class Orm {
 			this.tableName = tableInfo.name();
 	}
 
-	/**
-	 * Database to object.
-	 */
-	public Orm() {
-		// NOOP
-	}
+	public <T> List<T> dumpResultSet(ResultSet rs, Class clazz) {
+		// get the field mapping
+		ArrayList<FieldMap> fieldMap = getFieldMap(rs, clazz);
 
-	public String getTableName() {
-		return this.tableName;
-	}
+		List<T> elements = new ArrayList<T>();
+		try {
+			while (rs.next()) {
+				Object newInstance = clazz.newInstance();
 
-	public String getUpdateSQL() {
-		String sql = " SET ";
-		ArrayList<String> fieldNameList = new ArrayList<String>();
-		ArrayList<String> fieldValueList = new ArrayList<String>();
+				for (int i = 0; i < fieldMap.size(); i++) {
+					int columnPosition = fieldMap.get(i).getTableFieldColumn();
+					Object value = rs.getObject(columnPosition);
 
-		getKeyValueMap(fieldNameList, fieldValueList);
+					BeanUtils.copyProperty(newInstance, fieldMap.get(i).getObjectFieldName(), value);
+				}
 
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i) + ",";
+				elements.add((T) newInstance);
+			}
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (InstantiationException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (IllegalAccessException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (InvocationTargetException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (Exception e) {
+			StackUtil.logStackTrace(log, e);
 		}
 
-		// Remove tailing ,
-		sql = sql.substring(0, sql.length() - 1);
-
-		return sql;
+		return elements;
 	}
 
-	/**
-	 * Get SQL based on specified field names
-	 * 
-	 * @param toBeUpdatedFields
-	 * @return
-	 */
-	public String getUpdateSQL(String... toBeUpdatedFields) {
-		// convert object name to table field name
-		for (int i = 0; i < toBeUpdatedFields.length; ++i) {
-			toBeUpdatedFields[i] = formatFieldName(toBeUpdatedFields[i])
-					.toUpperCase();
+	private String formatFieldName(String fieldName) {
+		String name = "";
+		// joinTime, programRevisionName
+		char x = fieldName.charAt(0);
+		for (int i = 0; i < fieldName.length(); ++i) {
+			char k = fieldName.charAt(i);
+
+			if (isLowerCase(x) && isUpperCase(k))
+				name = name + "_";
+
+			name = name + k;
+			x = k;
 		}
 
-		String sql = " SET ";
-		ArrayList<String> fieldNameList = new ArrayList<String>();
-		ArrayList<String> fieldValueList = new ArrayList<String>();
+		return name;
+	}
 
-		getKeyValueMap(fieldNameList, fieldValueList);
+	private ArrayList<FieldMap> getFieldMap(ResultSet rs, Class clazz) {
+		ArrayList<FieldMap> fieldMap = new ArrayList<FieldMap>();
 
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			for (String f : toBeUpdatedFields) {
-				if (fieldNameList.get(i).equals(f)) {
-					sql += fieldNameList.get(i) + "=" + fieldValueList.get(i)
-							+ ",";
+		Field[] fields = clazz.getDeclaredFields();
+
+		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
+			FieldInfo kAnnotation = fields[iColCnt].getAnnotation(FieldInfo.class);
+			String originalFieldName = fields[iColCnt].getName();
+			String fieldName = originalFieldName;
+			if (kAnnotation != null) {
+				if (kAnnotation.ignore() == true)
+					continue;
+			}
+
+			if (kAnnotation != null && kAnnotation.fieldname().equals("") == false)
+				fieldName = kAnnotation.fieldname();
+
+			/**
+			 * <pre>
+			 * originalFieldName: field name of the object 
+			 * fieldName: user-customed field name
+			 * </pre>
+			 */
+			FieldMap item = getFieldMap(rs, originalFieldName, fieldName);
+
+			if (item.getObjectFieldName() != null)
+				fieldMap.add(item);
+		}
+
+		return fieldMap;
+	}
+
+	private FieldMap getFieldMap(ResultSet rs, String originalFieldName, String objectFieldName) {
+		FieldMap item = new FieldMap();
+
+		String tableFieldName = formatFieldName(objectFieldName);
+		try {
+			ResultSetMetaData metaData;
+			metaData = rs.getMetaData();
+
+			for (int i = 1; i <= metaData.getColumnCount(); ++i) {
+				String fieldName = metaData.getColumnName(i);
+
+				if (tableFieldName.compareToIgnoreCase(fieldName) == 0) {
+					item.setTableFieldColumn(i);
+					item.setObjectFieldName(originalFieldName);
 
 					break;
 				}
 			}
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
 		}
 
-		// Remove tailing ,
-		sql = sql.substring(0, sql.length() - 1);
-
-		return sql;
+		return item;
 	}
 
 	/**
 	 * Get SQL based on all fields.
 	 * 
-	 * @return
+	 * @return SQL for insertion
 	 */
 	public String getInsertSQL() {
 		String sql = " (";
@@ -136,15 +186,15 @@ public class Orm {
 	 * Get key list and corresponding value list.
 	 * 
 	 * @param fieldNameList
+	 *            field name list
 	 * @param fieldValueList
+	 *            value list
 	 */
-	private void getKeyValueMap(ArrayList<String> fieldNameList,
-			ArrayList<String> fieldValueList) {
+	private void getKeyValueMap(ArrayList<String> fieldNameList, ArrayList<String> fieldValueList) {
 		Field[] fields = clazz.getDeclaredFields();
 
 		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
-			FieldInfo kAnnotation = fields[iColCnt]
-					.getAnnotation(FieldInfo.class);
+			FieldInfo kAnnotation = fields[iColCnt].getAnnotation(FieldInfo.class);
 			String fieldName = fields[iColCnt].getName();
 			if (kAnnotation != null) {
 				if (kAnnotation.ignore() == true)
@@ -158,16 +208,14 @@ public class Orm {
 					fieldName = fieldName.toUpperCase();
 				}
 
-				if (kAnnotation != null
-						&& kAnnotation.fieldname().equals("") == false)
+				if (kAnnotation != null && kAnnotation.fieldname().equals("") == false)
 					fieldName = kAnnotation.fieldname();
 
 				String strValue = "";
 				if (obj == null)
 					strValue = "NULL";
 				else {
-					if (kAnnotation == null
-							|| kAnnotation.type() == KType.STRING)
+					if (kAnnotation == null || kAnnotation.type() == KType.STRING)
 						strValue = "'" + obj + "'";
 					else
 						strValue = "" + obj;
@@ -184,98 +232,59 @@ public class Orm {
 		}
 	}
 
-	private ArrayList<FieldMap> getFieldMap(ResultSet rs, Class clazz) {
-		ArrayList<FieldMap> fieldMap = new ArrayList<FieldMap>();
-
-		Field[] fields = clazz.getDeclaredFields();
-
-		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
-			FieldInfo kAnnotation = fields[iColCnt]
-					.getAnnotation(FieldInfo.class);
-			String originalFieldName = fields[iColCnt].getName();
-			String fieldName = originalFieldName;
-			if (kAnnotation != null) {
-				if (kAnnotation.ignore() == true)
-					continue;
-			}
-
-			if (kAnnotation != null
-					&& kAnnotation.fieldname().equals("") == false)
-				fieldName = kAnnotation.fieldname();
-
-			/**
-			 * <pre>
-			 * originalFieldName: field name of the object 
-			 * fieldName: user-customed field name
-			 * </pre>
-			 */
-			FieldMap item = getFieldMap(rs, originalFieldName, fieldName);
-
-			if (item.getObjectFieldName() != null)
-				fieldMap.add(item);
-		}
-
-		return fieldMap;
+	public String getTableName() {
+		return this.tableName;
 	}
 
-	private FieldMap getFieldMap(ResultSet rs, String originalFieldName,
-			String objectFieldName) {
-		FieldMap item = new FieldMap();
+	public String getUpdateSQL() {
+		String sql = " SET ";
+		ArrayList<String> fieldNameList = new ArrayList<String>();
+		ArrayList<String> fieldValueList = new ArrayList<String>();
 
-		String tableFieldName = formatFieldName(objectFieldName);
-		try {
-			ResultSetMetaData metaData;
-			metaData = (ResultSetMetaData) rs.getMetaData();
+		getKeyValueMap(fieldNameList, fieldValueList);
 
-			for (int i = 1; i <= metaData.getColumnCount(); ++i) {
-				String fieldName = metaData.getColumnName(i);
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i) + ",";
+		}
 
-				if (tableFieldName.compareToIgnoreCase(fieldName) == 0) {
-					item.setTableFieldColumn(i);
-					item.setObjectFieldName(originalFieldName);
+		// Remove tailing ,
+		sql = sql.substring(0, sql.length() - 1);
+
+		return sql;
+	}
+
+	/**
+	 * Get SQL based on specified field names
+	 * 
+	 * @param toBeUpdatedFields
+	 * @return SQL for update
+	 */
+	public String getUpdateSQL(String... toBeUpdatedFields) {
+		// convert object name to table field name
+		for (int i = 0; i < toBeUpdatedFields.length; ++i) {
+			toBeUpdatedFields[i] = formatFieldName(toBeUpdatedFields[i]).toUpperCase();
+		}
+
+		String sql = " SET ";
+		ArrayList<String> fieldNameList = new ArrayList<String>();
+		ArrayList<String> fieldValueList = new ArrayList<String>();
+
+		getKeyValueMap(fieldNameList, fieldValueList);
+
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			for (String f : toBeUpdatedFields) {
+				if (fieldNameList.get(i).equals(f)) {
+					sql += fieldNameList.get(i) + "=" + fieldValueList.get(i) + ",";
 
 					break;
 				}
 			}
-		} catch (SQLException e) {
-			StackUtil.logStackTrace(log, e);
 		}
 
-		return item;
-	}
+		// Remove tailing ,
+		sql = sql.substring(0, sql.length() - 1);
 
-	public <T> List<T> dumpResultSet(ResultSet rs, Class clazz) {
-		// get the field mapping
-		ArrayList<FieldMap> fieldMap = getFieldMap(rs, clazz);
-
-		List<T> elements = new ArrayList<T>();
-		try {
-			while (rs.next()) {
-				Object newInstance = clazz.newInstance();
-
-				for (int i = 0; i < fieldMap.size(); i++) {
-					int columnPosition = fieldMap.get(i).getTableFieldColumn();
-					Object value = rs.getObject(columnPosition);
-
-					BeanUtils.copyProperty(newInstance, fieldMap.get(i)
-							.getObjectFieldName(), value);
-				}
-
-				elements.add((T) newInstance);
-			}
-		} catch (SQLException e) {
-			StackUtil.logStackTrace(log, e);
-		} catch (InstantiationException e) {
-			StackUtil.logStackTrace(log, e);
-		} catch (IllegalAccessException e) {
-			StackUtil.logStackTrace(log, e);
-		} catch (InvocationTargetException e) {
-			StackUtil.logStackTrace(log, e);
-		} catch (Exception e) {
-			StackUtil.logStackTrace(log, e);
-		}
-
-		return elements;
+		return sql;
 	}
 
 	private boolean isLowerCase(char ch) {
@@ -286,23 +295,6 @@ public class Orm {
 		return ch >= 'A' && ch <= 'Z';
 	}
 
-	private String formatFieldName(String fieldName) {
-		String name = "";
-		// joinTime, programRevisionName
-		char x = fieldName.charAt(0);
-		for (int i = 0; i < fieldName.length(); ++i) {
-			char k = fieldName.charAt(i);
-
-			if (isLowerCase(x) && isUpperCase(k))
-				name = name + "_";
-
-			name = name + k;
-			x = k;
-		}
-
-		return name;
-	}
-
 	public class FieldMap {
 		private String objectFieldName;
 		private int tableFieldColumn;
@@ -311,12 +303,12 @@ public class Orm {
 			return objectFieldName;
 		}
 
-		public void setObjectFieldName(String objectFieldName) {
-			this.objectFieldName = objectFieldName;
-		}
-
 		public int getTableFieldColumn() {
 			return tableFieldColumn;
+		}
+
+		public void setObjectFieldName(String objectFieldName) {
+			this.objectFieldName = objectFieldName;
 		}
 
 		public void setTableFieldColumn(int tableFieldColumn) {

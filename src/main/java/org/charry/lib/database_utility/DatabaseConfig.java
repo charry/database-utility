@@ -13,13 +13,13 @@ import org.apache.commons.logging.LogFactory;
  * 
  * The configuration is located at config/config_database.xml
  * 
- * @author charry
+ * @author wcharry
  * 
  */
 public class DatabaseConfig {
 	private static Log log = LogFactory.getLog(DatabaseConfig.class);
 	/**
-	 * Te be more convenient, the database connection config will NOT be
+	 * To be more convenient, the database connection config will NOT be
 	 * removed, even client close the connection
 	 */
 	private static Map<String, DatabaseConfig> databaseConfigMap = new HashMap<String, DatabaseConfig>();
@@ -29,7 +29,30 @@ public class DatabaseConfig {
 	private String password;
 	private String connectionString;
 	private String driver;
-	private String alias;
+	private final String alias;
+
+	public static synchronized DatabaseConfig getConfig(String alias) {
+		Object obj = databaseConfigMap.get(alias);
+		DatabaseConfig config = null;
+		if (obj != null)
+			config = (DatabaseConfig) obj;
+		else
+			config = new DatabaseConfig(alias);
+
+		return config;
+	}
+
+	public static synchronized void removeConfigCache(String alias) {
+		databaseConfigMap.remove(alias);
+	}
+
+	public static synchronized void resetConfigCache() {
+		databaseConfigMap.clear();
+	}
+
+	public static synchronized void setConfigXML(String config) {
+		configXML = config;
+	}
 
 	/**
 	 * Init the database factory.
@@ -45,25 +68,6 @@ public class DatabaseConfig {
 		databaseConfigMap.put(alias, this); // cache db config
 	}
 
-	public static void resetConfigCache() {
-		databaseConfigMap.clear();
-	}
-
-	public static void removeConfigCache(String alias) {
-		databaseConfigMap.remove(alias);
-	}
-
-	public static DatabaseConfig getConfig(String alias) {
-		Object obj = databaseConfigMap.get(alias);
-		DatabaseConfig config = null;
-		if (obj != null)
-			config = (DatabaseConfig) obj;
-		else
-			config = new DatabaseConfig(alias);
-
-		return config;
-	}
-
 	public DatabaseConfig(final String alias, final String user,
 			final String password, final String connectionString,
 			final String driver) {
@@ -76,8 +80,24 @@ public class DatabaseConfig {
 		databaseConfigMap.put(alias, this); // cache db config
 	}
 
-	public static void setConfigXML(String config) {
-		configXML = config;
+	public synchronized String getAlias() {
+		return alias;
+	}
+
+	public synchronized String getConnectionString() {
+		return connectionString;
+	}
+
+	public synchronized String getDriver() {
+		return driver;
+	}
+
+	public synchronized String getPassword() {
+		return password;
+	}
+
+	public synchronized String getUser() {
+		return user;
 	}
 
 	/**
@@ -104,7 +124,7 @@ public class DatabaseConfig {
 	 * &lt;/config&gt;
 	 * </pre>
 	 */
-	private void loadConfig() {
+	private synchronized void loadConfig() {
 		try {
 			log.debug("load database config:" + configXML);
 			log.debug("database alias:" + alias);
@@ -119,25 +139,5 @@ public class DatabaseConfig {
 		} catch (Exception e) {
 			log.error(e);
 		}
-	}
-
-	public String getAlias() {
-		return alias;
-	}
-
-	public String getUser() {
-		return user;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public String getConnectionString() {
-		return connectionString;
-	}
-
-	public String getDriver() {
-		return driver;
 	}
 }

@@ -31,8 +31,5 @@ public class ExampleMySQLBasic {
 		}
 		
 		rx.close();
-
-		// only valid in transaction mode
-		log.info("has error:" + DatabaseFactory.getInstance().hasError());
 	}
 }

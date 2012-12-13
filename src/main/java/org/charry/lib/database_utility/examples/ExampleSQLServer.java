@@ -16,9 +16,6 @@ public class ExampleSQLServer {
 	}
 
 	private static void testSQLServer() {
-		DatabaseFactory.getInstance("kiwi").resetSQLCache()
-				.setTargetTable("foo").setFieldStringValue("v", "hello")
-				.insertRecord().close();
 		ResultSetEx x = DatabaseFactory.getInstance("kiwi").executeUpdate(
 				"insert into foo values('eee')");
 

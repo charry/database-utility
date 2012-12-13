@@ -12,62 +12,59 @@ import org.apache.commons.logging.LogFactory;
 import org.charry.lib.database_utility.util.SleepManager;
 import org.charry.lib.database_utility.util.StackUtil;
 
+
 /**
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
  * 
- * @version 0.1.3 beta
+ * @version 0.2.0 beta
  */
 public final class DatabaseFactory {
-	private static Log log = LogFactory.getLog(DatabaseFactory.class);
-	private DatabaseFactory databaseInstance = null;
 	private Connection connection = null;
 	private String databaseAlias;
-	private static String defaultDatabaseAlias = "apple";
+	private static String defaultDatabaseAlias = "default";
 	private static int waitTimeout = 28800; // in seconds, = 8 hours
 	private long lastActiveTime = 0;
-	private boolean bHasError = false; // for transaction only
-
-	// indicate if a transaction started
-	private boolean bTransactionStarted = false;
-
-	// some advanced and convenient operation
-	private String targetTable = "";
-	private ArrayList<String> fieldNameList = new ArrayList<String>();
-	private ArrayList<String> fieldValueList = new ArrayList<String>();
-	private String whereCondition = "1=2";
-
-	private String lastSQL = "";
-
 	private static Map<String, DatabaseFactory> databaseInstanceMap = new HashMap<String, DatabaseFactory>();
+	private static Log log = LogFactory.getLog(DatabaseFactory.class);
 
 	/**
-	 * By default, it'll return a database connection whose alias is 'apple',
-	 * with this setting, you must create a corresponding item(apple) in
+	 * Close all database connections
+	 */
+	public static synchronized void closeAllConnections() {
+		Iterator<Map.Entry<String, DatabaseFactory>> iter = databaseInstanceMap.entrySet().iterator();
+		while (iter.hasNext()) {
+			Map.Entry<String, DatabaseFactory> entry = iter.next();
+			// Object key = entry.getKey();
+			DatabaseFactory databaseInstance = entry.getValue();
+
+			databaseInstance.closeConnection();
+		}
+
+		databaseInstanceMap.clear();
+	}
+
+	/**
+	 * By default, it'll return a database connection whose alias is 'default',
+	 * with this setting, you must create a corresponding item(default) in
 	 * configuration file. But you could specify the default database with:
 	 * 
 	 * <pre>
 	 * setDefaultDatabaseAlias(...);
 	 * </pre>
 	 * 
-	 * @return
+	 * @return An instance of database factory
 	 */
 	public static synchronized DatabaseFactory getInstance() {
 		return DatabaseFactory.getInstance(defaultDatabaseAlias);
 	}
 
-	public static synchronized DatabaseFactory getInstance(String alias) {
-		DatabaseConfig config = DatabaseConfig.getConfig(alias);
-
-		return DatabaseFactory.getInstance(config);
-	}
-
 	/**
-	 * Singleton, the public interface to retrieve the instance.
+	 * Get the database factory based on configuration.
 	 * 
-	 * @param alias
-	 *            database alias
-	 * @return a shared database factory instance
+	 * @param config
+	 *            database configuration
+	 * @return A database instance.
 	 */
 	public static synchronized DatabaseFactory getInstance(DatabaseConfig config) {
 		Object obj = databaseInstanceMap.get(config.getAlias());
@@ -92,10 +89,8 @@ public final class DatabaseFactory {
 					databaseInstance = null;
 
 					databaseInstance = new DatabaseFactory(config);
-					log.info("db connection is closed or idle for a long time(>8hrs), recreate it:"
-							+ config.getAlias());
-					databaseInstanceMap
-							.put(config.getAlias(), databaseInstance);
+					log.info("db connection is closed or idle for a long time(>8hrs), recreate it:" + config.getAlias());
+					databaseInstanceMap.put(config.getAlias(), databaseInstance);
 				}
 			} catch (Exception e) {
 				StackUtil.logStackTrace(log, e);
@@ -108,46 +103,53 @@ public final class DatabaseFactory {
 	}
 
 	/**
-	 * Save the database connection as a new alias, the corresponding database
-	 * connection won't be created until the client code calls it.
-	 * 
-	 * If the new alias exits, the connection will be overwritten/replaced.
-	 * 
-	 * @param alias
-	 *            new database alias
-	 */
-	public void saveAliasAs(String alias) {
-		// if alias already exists, do nothing.
-		if (this.databaseAlias.equals(alias)) {
-			log.info("alias exists, noop");
-			return;
-		}
-
-		DatabaseConfig config = DatabaseConfig.getConfig(databaseAlias);
-
-		// the object will be cached in constructor automatically
-		// if the new alias exits, it'll be overwritten/replaced.
-		new DatabaseConfig(alias, config.getUser(), config.getPassword(),
-				config.getConnectionString(), config.getDriver());
-	}
-
-	/**
-	 * Initialize the database factory.
+	 * Singleton, the public interface to retrieve the instance.
 	 * 
 	 * @param alias
 	 *            database alias
+	 * @return a shared database factory instance
+	 */
+	public static synchronized DatabaseFactory getInstance(String alias) {
+		DatabaseConfig config = DatabaseConfig.getConfig(alias);
+
+		return DatabaseFactory.getInstance(config);
+	}
+
+	/**
+	 * Initialize a database factory based on configuration.
+	 * 
+	 * @param config
+	 *            database configuration
 	 */
 	private DatabaseFactory(final DatabaseConfig config) {
 		createConnection(config);
 	}
 
 	/**
-	 * Initialize the database factory.
-	 * 
-	 * @param alias
-	 *            database alias
+	 * Close the database connection.
 	 */
-	private void createConnection(final DatabaseConfig config) {
+	public synchronized void closeConnection() {
+		try {
+			if (connection != null && connection.isClosed() == false)
+				connection.close();
+			connection = null;
+		} catch (SQLException e) {
+			StackUtil.logStackTrace(log, e);
+		} catch (Exception e) {
+			StackUtil.logStackTrace(log, e);
+		}
+
+		databaseInstanceMap.remove(databaseAlias);
+		log.info("close connection, count of db instance:" + databaseInstanceMap.size());
+	}
+
+	/**
+	 * Create a database factory based on configuration.
+	 * 
+	 * @param config
+	 *            database configuration
+	 */
+	private synchronized void createConnection(final DatabaseConfig config) {
 		String url = config.getConnectionString();
 		String user = config.getUser();
 		String pwd = config.getPassword();
@@ -162,14 +164,13 @@ public final class DatabaseFactory {
 			} catch (ClassNotFoundException e) {
 				log.error("ClassNotFoundException:" + e);
 			} catch (Exception e) {
-				log.error("failed to connect to database:" + e + url + user
-						+ pwd);
+				log.error("failed to connect to database:" + e + url + user + pwd);
 			}
 
 			if (connection == null) {
 				int sleepInterval = SleepManager.getNextSleepInterval() * 1000;
-				log.error("failed to connect to db, sleep " + sleepInterval
-						+ " secs, try again later" + url + user + pwd);
+				log.error("failed to connect to db, sleep " + sleepInterval + " secs, try again later" + url + user
+						+ pwd);
 				try {
 					Thread.sleep(sleepInterval);
 				} catch (Exception e) {
@@ -185,57 +186,18 @@ public final class DatabaseFactory {
 	}
 
 	/**
-	 * Query database and return an encapsulated result set.
+	 * Delete record from database.
 	 * 
-	 * <p />
-	 * The client code must call its close() method.For convenience, all
-	 * exceptions are caught, the client code doesn't need to handle it.
-	 * 
-	 * @param sql
-	 *            query string
-	 * @return result set
+	 * @param targetTable
+	 *            target table
+	 * @param condition
+	 *            where condition
 	 */
-	public ResultSetEx executeQuery(final String sql) {
-		ResultSetEx rsEx = new ResultSetEx();
+	public synchronized void delete(String targetTable, String condition) {
+		String sql = String.format("DELETE FROM %s WHERE %s", targetTable, condition);
 
-		// if it's in transaction and there's an error, don't execute the SQL.
-		if (this.bTransactionStarted && this.bHasError)
-			return rsEx;
-
-		ResultSet rs = null;
-		Statement stmt = null;
-
-		try {
-			stmt = connection.createStatement(
-					ResultSet.TYPE_SCROLL_INSENSITIVE,
-					ResultSet.CONCUR_READ_ONLY);
-			rs = stmt.executeQuery(sql);
-
-			rsEx.setResultSet(rs);
-			rsEx.setStatement(stmt);
-		} catch (SQLRecoverableException e) {
-			log.error("SQLRecoverableException");
-			StackUtil.logStackTrace(log, e);
-			closeConnection();
-		} catch (SQLException e) {
-			log.error("SQLException:" + e);
-			log.error("alias:" + this.databaseAlias + ":" + sql);
-			StackUtil.logStackTrace(log, e);
-			try {
-				this.bHasError = true;
-				if (this.bTransactionStarted)
-					this.connection.rollback();
-			} catch (SQLException ex) {
-				StackUtil.logStackTrace(log, ex);
-			}
-		} catch (Exception e) {
-			log.error("alias:" + this.databaseAlias + ":" + sql);
-			StackUtil.logStackTrace(log, e);
-		}
-
-		this.lastSQL = sql;
-
-		return rsEx;
+		ResultSetEx rx = executeUpdate(sql);
+		rx.close();
 	}
 
 	/**
@@ -246,7 +208,7 @@ public final class DatabaseFactory {
 	 *            SQL string
 	 * @return prepared statement
 	 */
-	public PreparedStatement executePreparedQuery(final String sql) {
+	public synchronized PreparedStatement executePreparedQuery(final String sql) {
 		PreparedStatement stmt = null;
 
 		try {
@@ -263,37 +225,46 @@ public final class DatabaseFactory {
 			StackUtil.logStackTrace(log, e);
 		}
 
-		this.lastSQL = sql;
-
 		return stmt;
 	}
 
 	/**
-	 * Start a transaction, the database type must be InnoDB for MySQL.
+	 * Query database and return an encapsulated result set.
 	 * 
-	 * It's <b>NOT</b> guaranteed that it's thread-safe.
+	 * <p />
+	 * The client code must call its close() method.For convenience, all
+	 * exceptions are caught, the client code doesn't need to handle it.
+	 * 
+	 * @param sql
+	 *            query string
+	 * @return result set
 	 */
-	public void startTransaction() {
-		this.bTransactionStarted = true;
+	public synchronized ResultSetEx executeQuery(final String sql) {
+		ResultSetEx rsEx = new ResultSetEx();
+
+		ResultSet rs = null;
+		Statement stmt = null;
 
 		try {
-			this.connection.setAutoCommit(false);
+			stmt = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+			rs = stmt.executeQuery(sql);
+
+			rsEx.setResultSet(rs);
+			rsEx.setStatement(stmt);
+		} catch (SQLRecoverableException e) {
+			log.error("SQLRecoverableException");
+			StackUtil.logStackTrace(log, e);
+			closeConnection();
+		} catch (SQLException e) {
+			log.error("SQLException:" + e);
+			log.error("alias:" + this.databaseAlias + ":" + sql);
+			StackUtil.logStackTrace(log, e);
 		} catch (Exception e) {
+			log.error("alias:" + this.databaseAlias + ":" + sql);
 			StackUtil.logStackTrace(log, e);
 		}
-	}
 
-	public void endTransaction() {
-		this.bTransactionStarted = false;
-
-		// reset the error flag
-		this.bHasError = false;
-
-		try {
-			this.connection.setAutoCommit(true);
-		} catch (Exception e) {
-			StackUtil.logStackTrace(log, e);
-		}
+		return rsEx;
 	}
 
 	/**
@@ -306,20 +277,14 @@ public final class DatabaseFactory {
 	 *            SQL string
 	 * @return result set
 	 */
-	public ResultSetEx executeUpdate(final String sql) {
+	public synchronized ResultSetEx executeUpdate(final String sql) {
 		ResultSetEx rsEx = new ResultSetEx();
-
-		// if it's in transaction and there's an error, don't execute the SQL.
-		if (this.bTransactionStarted && this.bHasError)
-			return rsEx;
 
 		ResultSet rs = null;
 		Statement stmt = null;
 
 		try {
-			stmt = connection.createStatement(
-					ResultSet.TYPE_SCROLL_INSENSITIVE,
-					ResultSet.CONCUR_READ_ONLY);
+			stmt = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 			stmt.executeUpdate(sql, Statement.RETURN_GENERATED_KEYS);
 
 			rsEx.setResultSet(rs);
@@ -333,63 +298,33 @@ public final class DatabaseFactory {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sql);
 			StackUtil.logStackTrace(log, e);
-
-			try {
-				this.bHasError = true;
-				if (this.bTransactionStarted)
-					this.connection.rollback();
-			} catch (SQLException ex) {
-				StackUtil.logStackTrace(log, ex);
-			}
 		} catch (Exception e) {
 			StackUtil.logStackTrace(log, e);
 		}
-
-		this.lastSQL = sql;
 
 		return rsEx;
 	}
 
 	/**
-	 * If you want to enable/disable auto-commit explicitly, use the other one
-	 * instead.
-	 * 
-	 * Unless bAutoToggle=true, don't use this one.
-	 * 
-	 * @param sqlList
-	 * @param bAutoToggle
-	 */
-	public void executeUpdateBatch(final ArrayList<String> sqlList,
-			boolean bAutoToggle) {
-		boolean autoCommit = false;
-		try {
-			if (bAutoToggle) {
-				autoCommit = connection.getAutoCommit();
-				connection.setAutoCommit(false);
-			}
-
-			executeUpdateBatch(sqlList);
-
-			if (bAutoToggle)
-				connection.setAutoCommit(autoCommit);
-		} catch (Exception e) {
-			StackUtil.logStackTrace(log, e);
-		}
-	}
-
-	/**
-	 * Execute SQL in batch, ATTENTION, you need to disable the auto-commit
-	 * explicitly.
+	 * Execute SQL in batch, all SQL will be submitted in a transaction, if the
+	 * feature is supported
 	 * 
 	 * @param sqlList
 	 *            list of the SQL string
+	 * @return true if all SQL is executed successfully, or else return false
 	 */
-	public void executeUpdateBatch(final ArrayList<String> sqlList) {
+	public synchronized boolean executeUpdateBatch(final ArrayList<String> sqlList) {
+		boolean bSuccess = true;
+		boolean bAutocommit = true;
+
 		Statement stmt = null;
+
 		try {
-			stmt = connection.createStatement(
-					ResultSet.TYPE_SCROLL_INSENSITIVE,
-					ResultSet.CONCUR_READ_ONLY);
+			// disable auto commit
+			bAutocommit = this.connection.getAutoCommit();
+			this.connection.setAutoCommit(false);
+
+			stmt = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
 
 			for (int i = 0; i < sqlList.size(); i++) {
 				stmt.addBatch(sqlList.get(i));
@@ -400,13 +335,41 @@ public final class DatabaseFactory {
 		} catch (SQLRecoverableException e) {
 			log.error("SQLRecoverableException");
 			StackUtil.logStackTrace(log, e);
+
+			// rollback
+			try {
+				connection.rollback();
+			} catch (Exception ex) {
+				StackUtil.logStackTrace(log, e);
+			}
+
+			bSuccess = false;
+
 			closeConnection();
 		} catch (SQLException e) {
 			log.error("SQLException:" + e);
 			log.error("alias:" + this.databaseAlias + ":" + sqlList);
+
+			// rollback
+			try {
+				connection.rollback();
+			} catch (Exception ex) {
+				StackUtil.logStackTrace(log, e);
+			}
+
+			bSuccess = false;
 		} catch (Exception e) {
 			log.error("alias:" + this.databaseAlias + ":" + sqlList);
 			StackUtil.logStackTrace(log, e);
+
+			// rollback
+			try {
+				connection.rollback();
+			} catch (Exception ex) {
+				StackUtil.logStackTrace(log, e);
+			}
+
+			bSuccess = false;
 		} finally {
 			try {
 				if (stmt != null)
@@ -414,47 +377,19 @@ public final class DatabaseFactory {
 			} catch (Exception e) {
 				StackUtil.logStackTrace(log, e);
 			}
-		}
-	}
 
-	/**
-	 * Close the database connection.
-	 */
-	public void closeConnection() {
-		try {
-			if (connection != null && connection.isClosed() == false)
-				connection.close();
-			connection = null;
-
-			databaseInstance = null;
-		} catch (SQLException e) {
-			StackUtil.logStackTrace(log, e);
-		} catch (Exception e) {
-			StackUtil.logStackTrace(log, e);
+			// restore the auto-commit settings
+			try {
+				this.connection.setAutoCommit(bAutocommit);
+			} catch (Exception e) {
+				StackUtil.logStackTrace(log, e);
+			}
 		}
 
-		databaseInstanceMap.remove(databaseAlias);
-		log.info("close connection, count of db instance:"
-				+ databaseInstanceMap.size());
+		return bSuccess;
 	}
 
-	public boolean notFoundRecord(final String sql) {
-		return !(foundRecord(sql));
-	}
-
-	/**
-	 * Return the database connection.
-	 * 
-	 * DO NOT use this interface to close the connection, use closeConnection()
-	 * instead
-	 * 
-	 * @return database connection
-	 */
-	public Connection getConnection() {
-		return this.connection;
-	}
-
-	public boolean foundRecord(final String sql) {
+	public synchronized boolean foundRecord(final String sql) {
 		ResultSetEx rx = executeQuery(sql);
 		boolean bFound = false;
 		try {
@@ -471,6 +406,18 @@ public final class DatabaseFactory {
 	}
 
 	/**
+	 * Return the database connection.
+	 * 
+	 * DO NOT use this interface to close the connection, use closeConnection()
+	 * instead
+	 * 
+	 * @return database connection
+	 */
+	public synchronized Connection getConnection() {
+		return this.connection;
+	}
+
+	/**
 	 * A helper function to retrieve the field value, it only could get the
 	 * value of the first row.
 	 * 
@@ -478,7 +425,7 @@ public final class DatabaseFactory {
 	 * @param fieldName
 	 * @return Integer.MIN_VALUE if no record found
 	 */
-	public int getIntValue(final String sql, final String fieldName) {
+	public synchronized int getIntValue(final String sql, final String fieldName) {
 		ResultSetEx rx = executeQuery(sql);
 		int value = Integer.MIN_VALUE;
 		try {
@@ -508,7 +455,7 @@ public final class DatabaseFactory {
 	 * @param fieldName
 	 * @return null if no record found
 	 */
-	public String getStringValue(final String sql, final String fieldName) {
+	public synchronized String getStringValue(final String sql, final String fieldName) {
 		ResultSetEx rx = executeQuery(sql);
 		String value = null;
 		try {
@@ -530,256 +477,83 @@ public final class DatabaseFactory {
 		return value;
 	}
 
-	/**
-	 * 
-	 * Return true if there's an error in the latest transaction, this function
-	 * is only for transaction.
-	 */
-	public boolean hasError() {
-		return this.bHasError;
-	}
-
-	/**
-	 * Delete record from database.
-	 * 
-	 * @param targetTable
-	 *            target table
-	 * @param condition
-	 *            where condition
-	 */
-	public void delete(String targetTable, String condition) {
-		String sql = String.format("DELETE FROM %s WHERE %s", targetTable,
-				condition);
-
-		ResultSetEx rx = executeUpdate(sql);
-		rx.close();
-	}
-
-	/**
-	 * Set the target table for future operation.
-	 * 
-	 * @param targetTable
-	 *            target table
-	 * @return the DatabaseFactory instance, this could be used as method
-	 *         chaining.
-	 */
-	public DatabaseFactory setTargetTable(String targetTable) {
-		this.targetTable = targetTable;
-
-		return this;
-	}
-
-	/**
-	 * Set value of one field.
-	 * 
-	 * @param filedName
-	 *            field name
-	 * @param value
-	 *            field value
-	 * @return the DatabaseFactory instance, this could be used as method
-	 *         chaining.
-	 */
-	public DatabaseFactory setFieldValue(String filedName, Object value) {
-		this.fieldNameList.add(filedName);
-		this.fieldValueList.add("" + value);
-
-		return this;
-	}
-
-	/**
-	 * Set string value of one field
-	 * 
-	 * @param filedName
-	 *            field name
-	 * @param value
-	 *            field value
-	 * @return the DatabaseFactory instance, this could be used as method
-	 *         chaining.
-	 */
-	public DatabaseFactory setFieldStringValue(String filedName, Object value) {
-		this.fieldNameList.add(filedName);
-		this.fieldValueList.add("'" + value + "'");
-
-		return this;
-	}
-
-	/**
-	 * Reset the cached field names and field values, etc.
-	 * 
-	 * @return the DatabaseFactory instance, this could be used as method
-	 *         chaining.
-	 */
-	public DatabaseFactory resetSQLCache() {
-		this.fieldNameList.clear();
-		this.fieldValueList.clear();
-
-		this.whereCondition = "1=2";
-
-		return this;
-	}
-
-	/**
-	 * Set the where condition.
-	 * 
-	 * @param where
-	 *            where condition
-	 * @return the DatabaseFactory instance, this could be used as method
-	 *         chaining.
-	 */
-	public DatabaseFactory setWhere(String where) {
-		this.whereCondition = where;
-
-		return this;
-	}
-
-	/**
-	 * Insert a record into table.
-	 * 
-	 * @return A wrapper of ResultSet
-	 */
-	public ResultSetEx insertRecord() {
-		String sql = "INSERT INTO " + targetTable + "(";
-
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			if (i < fieldNameList.size() - 1)
-				sql += fieldNameList.get(i) + ", ";
-			else
-				sql += fieldNameList.get(i);
-		}
-		sql += ") VALUES(";
-
-		for (int i = 0; i < fieldValueList.size(); ++i) {
-			if (i < fieldValueList.size() - 1)
-				sql += fieldValueList.get(i) + ", ";
-			else
-				sql += fieldValueList.get(i);
-		}
-		sql += ")";
-
-		return executeUpdate(sql);
-	}
-
-	/**
-	 * @param object
-	 * @param key
-	 */
-	public ResultSetEx updateObject(Object object, String where) {
-		Orm orm = new Orm(object);
-
-		String tableName = "";
-		if (this.targetTable.equals("") == false)
-			tableName = this.targetTable;
-		else
-			tableName = orm.getTableName();
-
-		String sql = "UPDATE " + tableName + orm.getUpdateSQL();
-		sql += " WHERE " + where;
-
-		return this.executeUpdate(sql);
-	}
-
-	/**
-	 * @param object
-	 * @param key
-	 * @param fields
-	 */
-	public ResultSetEx updateObject(Object object, String where,
-			String... fields) {
-		Orm orm = new Orm(object);
-
-		String tableName = "";
-		if (this.targetTable.equals("") == false)
-			tableName = this.targetTable;
-		else
-			tableName = orm.getTableName();
-
-		String sql = "UPDATE " + tableName + orm.getUpdateSQL(fields);
-		sql += " WHERE " + where;
-
-		return this.executeUpdate(sql);
-	}
-
-	/**
-	 * Save a object
-	 * 
-	 * @param clazz
-	 *            class of object
-	 * @param object
-	 *            object
-	 * @return ResultSetEx
-	 */
-	public ResultSetEx saveObject(Object object) {
-		Orm orm = new Orm(object);
-		String tableName = "";
-		if (this.targetTable.equals("") == false)
-			tableName = this.targetTable;
-		else
-			tableName = orm.getTableName();
-
-		String sql = "INSERT INTO " + tableName + orm.getInsertSQL();
-
-		return this.executeUpdate(sql);
-	}
-
-	/**
-	 * Insert if record doesn't exist, else update
-	 * 
-	 * @param keys
-	 *            keys to determine if record(s) exist
-	 * @return
-	 */
-	public ResultSetEx insertOrUpdate(String... keys) {
-		String condition = "";
-		for (String key : keys) {
-			for (int i = 0; i < fieldNameList.size(); ++i) {
-				String fname = fieldNameList.get(i);
-
-				if (key.equals(fname)) {
-					condition += key + "=" + fieldValueList.get(i);
-					condition += " AND ";
-				}
-			}
-		}
-
-		if (condition.contains("AND"))
-			condition = condition.substring(0, condition.length() - 4);
-
-		String sql = String.format("SELECT COUNT(*) AS R FROM %s WHERE %s",
-				this.targetTable, condition);
-
-		if (getIntValue(sql, "R") == 0) {
-			return this.insertRecord();
+	public ResultSetEx insertOrUpdate(String sqlInsertOrUpdate) {
+		String sql[] = sqlInsertOrUpdate.split("\\^\\^\\^\\^");
+		if (getIntValue(sql[0], "R") == 0) {
+			return this.executeUpdate(sql[1]);
 		} else {
-			this.whereCondition = condition;
-			return this.updateRecord();
+			return this.executeUpdate(sql[2]);
 		}
 	}
 
+	public synchronized boolean notFoundRecord(final String sql) {
+		return !(foundRecord(sql));
+	}
+
 	/**
-	 * Update record in table.
+	 * Save the database connection as a new alias, the corresponding database
+	 * connection won't be created until the client code calls it.
 	 * 
-	 * @return A wrapper of ResultSet
+	 * If the new alias exits, the connection will be overwritten/replaced.
+	 * 
+	 * @param alias
+	 *            new database alias
 	 */
-	public ResultSetEx updateRecord() {
-		String sql = "UPDATE " + targetTable + " SET ";
-
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i);
-
-			if (i < fieldNameList.size() - 1)
-				sql += ", ";
+	public synchronized void saveAliasAs(String alias) {
+		// if alias already exists, do nothing.
+		if (this.databaseAlias.equals(alias)) {
+			log.info("alias exists, noop");
+			return;
 		}
-		sql += " WHERE " + this.whereCondition;
 
-		return executeUpdate(sql);
+		DatabaseConfig config = DatabaseConfig.getConfig(databaseAlias);
+
+		// the object will be cached in constructor automatically
+		// if the new alias exits, it'll be overwritten/replaced.
+		new DatabaseConfig(alias, config.getUser(), config.getPassword(), config.getConnectionString(),
+				config.getDriver());
 	}
 
-	public String getLastSQL() {
-		return lastSQL;
+	public final static class FactoryFacade {
+		public static void setConfigXML(String config) {
+			DatabaseConfig.setConfigXML(config);
+		}
+
+		/**
+		 * Set the default database alias, the default value is: default
+		 * 
+		 * @param alias
+		 *            database alias name
+		 */
+		public static synchronized void setDefaultDatabaseAlias(String alias) {
+			DatabaseFactory.defaultDatabaseAlias = alias;
+		}
+
+		/**
+		 * Sleep n seconds to retry if failed to connect to database.
+		 * 
+		 * @param interval
+		 *            sleep interval, unit: second, 0 means increased interval
+		 */
+		public static synchronized void setRetryInterval(int interval) {
+			SleepManager.setSleepInterval(interval);
+		}
+
+		/**
+		 * Set timeout, when the connection is idle for a long time,
+		 * reconnection is required. the timeout value is the minimum one of all
+		 * database which are configured in config_database.xml
+		 * 
+		 * @param timeout
+		 *            max timeout
+		 */
+		public static synchronized void setWaitTimeout(int timeout) {
+			DatabaseFactory.waitTimeout = timeout;
+		}
 	}
 
 	/**
-	 * A wrapper for MySQL ResultSet. Ex means Extended.
+	 * A wrapper for MySQL ResultSet. Ex means Extended. Not thread-safe.
 	 * 
 	 * @author wcharry
 	 * 
@@ -790,11 +564,26 @@ public final class DatabaseFactory {
 		private long lastId = -1;
 
 		/**
+		 * Close the resources, this function must be called by the client code.
+		 */
+		public void close() {
+			try {
+				if (resultSet != null)
+					resultSet.close();
+
+				if (statement != null)
+					statement.close();
+			} catch (Exception e) {
+				StackUtil.logStackTrace(log, e);
+			}
+		}
+
+		/**
 		 * Only works with MySQL.
 		 * 
 		 * only get one last Id, for more, use statement instead
 		 * 
-		 * @return
+		 * @return last insert id
 		 */
 		public long getLastId() {
 			// this only works for one-insert-statement, if there's multiple
@@ -820,27 +609,27 @@ public final class DatabaseFactory {
 			return this.lastId;
 		}
 
-		public void setLastId(long id) {
-			this.lastId = id;
-		}
-
 		public ResultSet getResultSet() {
 			return resultSet;
-		}
-
-		public void setResultSet(ResultSet resultSet) {
-			this.resultSet = resultSet;
 		}
 
 		public Statement getStatement() {
 			return statement;
 		}
 
+		public void setLastId(long id) {
+			this.lastId = id;
+		}
+
+		public void setResultSet(ResultSet resultSet) {
+			this.resultSet = resultSet;
+		}
+
 		public void setStatement(Statement statement) {
 			this.statement = statement;
 		}
 
-		public <T> List<T> toList(Class clazz) {
+		public <T> List<T> toList(Class<T> clazz) {
 			Orm orm = new Orm();
 
 			List<T> list = orm.dumpResultSet(resultSet, clazz);
@@ -848,76 +637,6 @@ public final class DatabaseFactory {
 			this.close();
 
 			return list;
-		}
-
-		/**
-		 * Close the resources, this function must be called by the client code.
-		 */
-		public void close() {
-			try {
-				if (resultSet != null)
-					resultSet.close();
-
-				if (statement != null)
-					statement.close();
-			} catch (Exception e) {
-				StackUtil.logStackTrace(log, e);
-			}
-		}
-	}
-
-	/**
-	 * Close all database connections
-	 */
-	public static void closeAllConnections() {
-		Iterator iter = databaseInstanceMap.entrySet().iterator();
-		while (iter.hasNext()) {
-			Map.Entry entry = (Map.Entry) iter.next();
-			// Object key = entry.getKey();
-			Object val = entry.getValue();
-			DatabaseFactory databaseInstance = (DatabaseFactory) val;
-
-			databaseInstance.closeConnection();
-		}
-
-		databaseInstanceMap.clear();
-	}
-
-	public final static class FactoryFacade {
-		public static void setConfigXML(String config) {
-			DatabaseConfig.setConfigXML(config);
-		}
-
-		/**
-		 * Set timeout, when the connection is idle for a long time,
-		 * reconnection is required. the timeout value is the minimum one of all
-		 * database which are configured in config_database.xml
-		 * 
-		 * @param timeout
-		 *            max timeout
-		 */
-		public static void setWaitTimeout(int timeout) {
-			DatabaseFactory.waitTimeout = timeout;
-		}
-
-		/**
-		 * Set the default database alias, the default value is: apple
-		 * 
-		 * @param alias
-		 *            database alias name
-		 */
-		public static void setDefaultDatabaseAlias(String alias) {
-			DatabaseFactory.defaultDatabaseAlias = alias;
-		}
-
-		/**
-		 * Sleep n seconds to retry if failed to connect to database.
-		 * 
-		 * @param interval
-		 *            sleep interval, unit: second, 0 means increased interval
-		 */
-		public static void setRetryInterval(int interval) {
-			SleepManager.setSleepInterval(interval);
 		}
 	}
 }

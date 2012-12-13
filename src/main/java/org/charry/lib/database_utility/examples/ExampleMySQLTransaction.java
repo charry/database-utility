@@ -17,8 +17,6 @@ public class ExampleMySQLTransaction {
 	}
 
 	private static void testTrx() {
-		DatabaseFactory.getInstance().startTransaction();
-
 		String sql = "update test set NAME='aaa' where ID=1";
 		DatabaseFactory.getInstance().executeUpdate(sql).close();
 
@@ -30,10 +28,5 @@ public class ExampleMySQLTransaction {
 
 		sql = "update test set NAME='ddd' where ID=4";
 		DatabaseFactory.getInstance().executeUpdate(sql).close();
-
-		DatabaseFactory.getInstance().endTransaction();
-
-		// only valid in transaction mode
-		log.info("has error:" + DatabaseFactory.getInstance().hasError());
 	}
 }

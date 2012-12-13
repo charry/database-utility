@@ -23,9 +23,6 @@ public class ExampleORM {
 		UserInfo u = new UserInfo();
 		u.setUser("Charry");
 		u.setPassword("hellopass");
-		DatabaseFactory.getInstance().saveObject(u).close();
-
-		log.info(DatabaseFactory.getInstance().getLastSQL());
 	}
 
 	private static void testDB2Object() {

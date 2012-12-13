@@ -18,10 +18,6 @@ public class ExampleOracle {
 
 	private static void testOracle() {
 		// test1
-		DatabaseFactory.getInstance(DB_ALIAS).resetSQLCache()
-				.setTargetTable("foo").setFieldStringValue("v", "hello")
-				.insertRecord().close();
-
 		// test2
 		ResultSetEx x = DatabaseFactory.getInstance(DB_ALIAS).executeQuery(
 				"insert into foo values('eee')");
