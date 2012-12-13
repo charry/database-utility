@@ -4,7 +4,7 @@
 	<groupId>org.charry.lib</groupId>
 	<artifactId>database-utility</artifactId>
 	<packaging>jar</packaging>
-	<version>0.1.3</version>
+	<version>0.2.0</version>
 	<name>database-utility</name>
 	<url>http://maven.apache.org</url>
 	<dependencies>
