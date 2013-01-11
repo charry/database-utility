@@ -25,12 +25,6 @@ public class DatabaseConfig {
 	private static Map<String, DatabaseConfig> databaseConfigMap = new HashMap<String, DatabaseConfig>();
 
 	private static String configXML = "config/config_database.xml";
-	private String user;
-	private String password;
-	private String connectionString;
-	private String driver;
-	private final String alias;
-
 	public static synchronized DatabaseConfig getConfig(String alias) {
 		Object obj = databaseConfigMap.get(alias);
 		DatabaseConfig config = null;
@@ -41,18 +35,24 @@ public class DatabaseConfig {
 
 		return config;
 	}
-
 	public static synchronized void removeConfigCache(String alias) {
 		databaseConfigMap.remove(alias);
 	}
-
 	public static synchronized void resetConfigCache() {
 		databaseConfigMap.clear();
 	}
-
 	public static synchronized void setConfigXML(String config) {
 		configXML = config;
 	}
+	private String user;
+
+	private String password;
+
+	private String connectionString;
+
+	private String driver;
+
+	private final String alias;
 
 	/**
 	 * Init the database factory.
@@ -68,8 +68,7 @@ public class DatabaseConfig {
 		databaseConfigMap.put(alias, this); // cache db config
 	}
 
-	public DatabaseConfig(final String alias, final String user,
-			final String password, final String connectionString,
+	public DatabaseConfig(final String alias, final String user, final String password, final String connectionString,
 			final String driver) {
 		this.alias = alias;
 		this.driver = driver;
@@ -132,8 +131,7 @@ public class DatabaseConfig {
 			this.user = config.getString("database." + alias + ".username");
 			log.info("username:" + user);
 			this.password = config.getString("database." + alias + ".password");
-			this.connectionString = config.getString("database." + alias
-					+ ".url");
+			this.connectionString = config.getString("database." + alias + ".url");
 			log.info("conn string:" + connectionString);
 			this.driver = config.getString("database." + alias + ".driver");
 		} catch (Exception e) {

@@ -13,7 +13,6 @@ import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.charry.lib.database_utility.annotation.FieldInfo;
 import org.charry.lib.database_utility.annotation.FieldInfo.KType;
 import org.charry.lib.database_utility.annotation.TableInfo;
@@ -59,8 +58,7 @@ public class Orm {
 					int columnPosition = fieldMap.get(i).getTableFieldColumn();
 					Object value = rs.getObject(columnPosition);
 
-					BeanUtils.copyProperty(newInstance, fieldMap.get(i)
-							.getObjectFieldName(), value);
+					BeanUtils.copyProperty(newInstance, fieldMap.get(i).getObjectFieldName(), value);
 				}
 
 				elements.add((T) newInstance);
@@ -97,6 +95,15 @@ public class Orm {
 		return name;
 	}
 
+	private void getAllField(Class clazz, List<Field> fieldList) {
+		if (clazz == Object.class) {
+			return;
+		} else {
+			fieldList.addAll(Arrays.asList(clazz.getDeclaredFields()));
+			getAllField(clazz.getSuperclass(), fieldList);
+		}
+	}
+
 	private ArrayList<FieldMap> getFieldMap(ResultSet rs, Class clazz) {
 		ArrayList<FieldMap> fieldMap = new ArrayList<FieldMap>();
 
@@ -105,8 +112,7 @@ public class Orm {
 		Field[] fields = fieldList.toArray(new Field[fieldList.size()]);
 
 		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
-			FieldInfo kAnnotation = fields[iColCnt]
-					.getAnnotation(FieldInfo.class);
+			FieldInfo kAnnotation = fields[iColCnt].getAnnotation(FieldInfo.class);
 			String originalFieldName = fields[iColCnt].getName();
 			String fieldName = originalFieldName;
 			if (kAnnotation != null) {
@@ -114,8 +120,7 @@ public class Orm {
 					continue;
 			}
 
-			if (kAnnotation != null
-					&& kAnnotation.fieldname().equals("") == false)
+			if (kAnnotation != null && kAnnotation.fieldname().equals("") == false)
 				fieldName = kAnnotation.fieldname();
 
 			/**
@@ -133,17 +138,7 @@ public class Orm {
 		return fieldMap;
 	}
 
-	private void getAllField(Class clazz, List<Field> fieldList) {
-		if (clazz == Object.class) {
-			return;
-		} else {
-			fieldList.addAll(Arrays.asList(clazz.getDeclaredFields()));
-			getAllField(clazz.getSuperclass(), fieldList);
-		}
-	}
-
-	private FieldMap getFieldMap(ResultSet rs, String originalFieldName,
-			String objectFieldName) {
+	private FieldMap getFieldMap(ResultSet rs, String originalFieldName, String objectFieldName) {
 		FieldMap item = new FieldMap();
 
 		String tableFieldName = formatFieldName(objectFieldName);
@@ -207,13 +202,11 @@ public class Orm {
 	 * @param fieldValueList
 	 *            value list
 	 */
-	private void getKeyValueMap(ArrayList<String> fieldNameList,
-			ArrayList<String> fieldValueList) {
+	private void getKeyValueMap(ArrayList<String> fieldNameList, ArrayList<String> fieldValueList) {
 		Field[] fields = clazz.getDeclaredFields();
 
 		for (int iColCnt = 0; iColCnt < fields.length; iColCnt++) {
-			FieldInfo kAnnotation = fields[iColCnt]
-					.getAnnotation(FieldInfo.class);
+			FieldInfo kAnnotation = fields[iColCnt].getAnnotation(FieldInfo.class);
 			String fieldName = fields[iColCnt].getName();
 			if (kAnnotation != null) {
 				if (kAnnotation.ignore() == true)
@@ -227,16 +220,14 @@ public class Orm {
 					fieldName = fieldName.toUpperCase();
 				}
 
-				if (kAnnotation != null
-						&& kAnnotation.fieldname().equals("") == false)
+				if (kAnnotation != null && kAnnotation.fieldname().equals("") == false)
 					fieldName = kAnnotation.fieldname();
 
 				String strValue = "";
 				if (obj == null)
 					strValue = "NULL";
 				else {
-					if (kAnnotation == null
-							|| kAnnotation.type() == KType.STRING)
+					if (kAnnotation == null || kAnnotation.type() == KType.STRING)
 						strValue = "'" + obj + "'";
 					else
 						strValue = "" + obj;
@@ -283,8 +274,7 @@ public class Orm {
 	public String getUpdateSQL(String... toBeUpdatedFields) {
 		// convert object name to table field name
 		for (int i = 0; i < toBeUpdatedFields.length; ++i) {
-			toBeUpdatedFields[i] = formatFieldName(toBeUpdatedFields[i])
-					.toUpperCase();
+			toBeUpdatedFields[i] = formatFieldName(toBeUpdatedFields[i]).toUpperCase();
 		}
 
 		String sql = " SET ";
@@ -296,8 +286,7 @@ public class Orm {
 		for (int i = 0; i < fieldNameList.size(); ++i) {
 			for (String f : toBeUpdatedFields) {
 				if (fieldNameList.get(i).equals(f)) {
-					sql += fieldNameList.get(i) + "=" + fieldValueList.get(i)
-							+ ",";
+					sql += fieldNameList.get(i) + "=" + fieldValueList.get(i) + ",";
 
 					break;
 				}
