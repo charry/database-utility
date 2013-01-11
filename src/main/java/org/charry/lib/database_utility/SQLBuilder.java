@@ -1,4 +1,5 @@
 package org.charry.lib.database_utility;
+
 import java.util.ArrayList;
 
 public class SQLBuilder {
@@ -7,13 +8,9 @@ public class SQLBuilder {
 	private final ArrayList<String> fieldValueList = new ArrayList<String>();
 	private String whereCondition = "1=2";
 	private String sql = "";
+	private SqlType sqlType;
 
-	/**
-	 * Insert a record into table.
-	 * 
-	 * @return A wrapper of ResultSet
-	 */
-	public SQLBuilder insert() {
+	private SQLBuilder generateInsertSql() {
 		String sql = "INSERT INTO " + targetTable + "(";
 
 		for (int i = 0; i < fieldNameList.size(); ++i) {
@@ -33,6 +30,33 @@ public class SQLBuilder {
 		sql += ")";
 
 		this.sql = sql;
+
+		return this;
+	}
+
+	private SQLBuilder generateUpdateSql() {
+		String sql = "UPDATE " + targetTable + " SET ";
+
+		for (int i = 0; i < fieldNameList.size(); ++i) {
+			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i);
+
+			if (i < fieldNameList.size() - 1)
+				sql += ", ";
+		}
+		sql += " WHERE " + this.whereCondition;
+
+		this.sql = sql;
+
+		return this;
+	}
+
+	/**
+	 * Insert a record into table.
+	 * 
+	 * @return A wrapper of ResultSet
+	 */
+	public SQLBuilder insert() {
+		this.sqlType = SqlType.INSERT;
 
 		return this;
 	}
@@ -64,14 +88,15 @@ public class SQLBuilder {
 
 		String sqlCombo = sqlQuery;
 
-		this.insert();
+		this.insert().generateInsertSql();
 		sqlCombo += "^^^^" + this.sql;
 
 		this.whereCondition = condition;
-		this.update();
+		this.update().generateUpdateSql();
 		sqlCombo += "^^^^" + this.sql;
 
 		this.sql = sqlCombo;
+		this.sqlType = SqlType.NONE;
 
 		return this;
 	}
@@ -126,11 +151,25 @@ public class SQLBuilder {
 		String sql = "INSERT INTO " + tableName + orm.getInsertSQL();
 
 		this.sql = sql;
+		this.sqlType = SqlType.NONE;
 
 		return this;
 	}
 
 	public String sql() {
+		switch (sqlType) {
+		case INSERT:
+			this.generateInsertSql();
+			break;
+
+		case UPDATE:
+			this.generateUpdateSql();
+			break;
+
+		default:
+			break;
+		}
+
 		return this.sql;
 	}
 
@@ -167,6 +206,7 @@ public class SQLBuilder {
 
 	@Override
 	public String toString() {
+		this.sql();
 		return this.sql;
 	}
 
@@ -176,17 +216,7 @@ public class SQLBuilder {
 	 * @return A wrapper of ResultSet
 	 */
 	public SQLBuilder update() {
-		String sql = "UPDATE " + targetTable + " SET ";
-
-		for (int i = 0; i < fieldNameList.size(); ++i) {
-			sql += fieldNameList.get(i) + "=" + fieldValueList.get(i);
-
-			if (i < fieldNameList.size() - 1)
-				sql += ", ";
-		}
-		sql += " WHERE " + this.whereCondition;
-
-		this.sql = sql;
+		this.sqlType = SqlType.UPDATE;
 
 		return this;
 	}
@@ -210,6 +240,7 @@ public class SQLBuilder {
 		sql += " WHERE " + where;
 
 		this.sql = sql;
+		this.sqlType = SqlType.NONE;
 
 		return this;
 	}
@@ -235,6 +266,7 @@ public class SQLBuilder {
 		sql += " WHERE " + where;
 
 		this.sql = sql;
+		this.sqlType = SqlType.NONE;
 
 		return this;
 	}
@@ -251,5 +283,9 @@ public class SQLBuilder {
 		this.whereCondition = where;
 
 		return this;
+	}
+
+	private enum SqlType {
+		NONE, INSERT, UPDATE
 	}
 }

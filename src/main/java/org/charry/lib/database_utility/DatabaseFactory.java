@@ -1,6 +1,12 @@
 package org.charry.lib.database_utility;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.SQLRecoverableException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -9,15 +15,15 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
 import org.charry.lib.database_utility.util.SleepManager;
 import org.charry.lib.database_utility.util.StackUtil;
-
 
 /**
  * Database utility, it's for commonly-used DML, for advanced feature, such as
  * transaction, please use getConnection() to get the database handler directly.
  * 
- * @version 0.2.0 beta
+ * @version 0.2.3 beta
  */
 public final class DatabaseFactory {
 	private Connection connection = null;
