@@ -23,8 +23,13 @@ public class DatabaseConfig {
 	 * removed, even client close the connection
 	 */
 	private static Map<String, DatabaseConfig> databaseConfigMap = new HashMap<String, DatabaseConfig>();
-
 	private static String configXML = "config/config_database.xml";
+	private String user;
+	private String password;
+	private String connectionString;
+	private String driver;
+	private final String alias;
+
 	public static synchronized DatabaseConfig getConfig(String alias) {
 		Object obj = databaseConfigMap.get(alias);
 		DatabaseConfig config = null;
@@ -35,24 +40,18 @@ public class DatabaseConfig {
 
 		return config;
 	}
+
 	public static synchronized void removeConfigCache(String alias) {
 		databaseConfigMap.remove(alias);
 	}
+
 	public static synchronized void resetConfigCache() {
 		databaseConfigMap.clear();
 	}
+
 	public static synchronized void setConfigXML(String config) {
 		configXML = config;
 	}
-	private String user;
-
-	private String password;
-
-	private String connectionString;
-
-	private String driver;
-
-	private final String alias;
 
 	/**
 	 * Init the database factory.
